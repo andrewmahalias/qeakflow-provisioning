@@ -29,13 +29,11 @@ class Tenant(Base):
     __tablename__ = "tenants"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=lambda: uuid.uuid4().hex[:12])
-    # Natural key from Stripe: one customer maps to at most one tenant.
+
     stripe_customer_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     status: Mapped[TenantStatus] = mapped_column(String(20), default=TenantStatus.PENDING)
     container_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    # Host port reserved for this tenant. UNIQUE: the database itself rejects double allocation.
     port: Mapped[int | None] = mapped_column(Integer, unique=True, nullable=True)
-    # Set on the first failed payment, cleared when an invoice is paid. Drives freeze / purge.
     past_due_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -5,10 +5,10 @@ import pytest
 from arq import Retry
 
 from app.db import Tenant, TenantStatus, utcnow
-from app.locks import LockNotAcquired, redis_lock, tenant_lock
-from app.provisioner import FakeProvisioner
+from app.provisioning.locks import LockNotAcquired, redis_lock, tenant_lock
+from app.provisioning.provisioner import FakeProvisioner
 from app.provisioning import PORT_RANGE, Deps, TenantNotFound, deprovision, provision, run_lifecycle
-from app.worker import provision_tenant
+from app.provisioning.worker import provision_tenant
 from tests.conftest import FakeQueue
 
 

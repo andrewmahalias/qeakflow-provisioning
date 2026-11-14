@@ -6,14 +6,13 @@ from fastapi import FastAPI
 
 from app.config import get_settings
 from app.db import create_tables, make_engine, make_session_factory
-from app.queue import ArqQueue
-from app.dev import router as dev_router
-from app.webhook import router
+from app.provisioning.queue import ArqQueue
+from app.routers.dev import router as dev_router
+from app.routers.webhook import router
+from app.schemas import HealthResponse
 
 
 def create_app(session_factory=None, queue=None, dev_mode: bool | None = None) -> FastAPI:
-    """Dependencies can be injected (tests); otherwise they are built on startup."""
-
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         settings = get_settings()
@@ -42,7 +41,7 @@ def create_app(session_factory=None, queue=None, dev_mode: bool | None = None) -
     if app.state.dev_mode:
         app.include_router(dev_router)
 
-    @app.get("/health")
+    @app.get("/health", response_model=HealthResponse)
     async def health():
         return {"status": "ok"}
 

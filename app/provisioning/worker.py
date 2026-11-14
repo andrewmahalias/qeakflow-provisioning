@@ -5,10 +5,10 @@ from arq.connections import RedisSettings
 
 from app.config import get_settings
 from app.db import make_engine, make_session_factory
-from app.locks import LockNotAcquired, tenant_lock
-from app.provisioner import DockerProvisioner, FakeProvisioner
-from app.provisioning import Deps, TenantNotFound, deprovision, provision, run_lifecycle
-from app.queue import ArqQueue
+from app.provisioning.locks import LockNotAcquired, tenant_lock
+from app.provisioning.provisioner import DockerProvisioner, FakeProvisioner
+from app.provisioning.orchestrator import Deps, TenantNotFound, deprovision, provision, run_lifecycle
+from app.provisioning.queue import ArqQueue
 
 
 async def startup(ctx: dict) -> None:

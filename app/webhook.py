@@ -1,18 +1,15 @@
 import json
 import logging
 
-import stripe
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import Settings, get_settings
 from app.db import ProcessedEvent, Tenant, TenantStatus, utcnow
-from app.queue import JobQueue
+from app.provisioning.queue import JobQueue
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
 
 
 async def get_session(request: Request):
@@ -22,27 +19,6 @@ async def get_session(request: Request):
 
 def get_queue(request: Request) -> JobQueue:
     return request.app.state.queue
-
-
-@router.post("/webhooks/stripe")
-async def stripe_webhook(
-    request: Request,
-    stripe_signature: str | None = Header(default=None, alias="Stripe-Signature"),
-    settings: Settings = Depends(get_settings),
-    session: AsyncSession = Depends(get_session),
-    queue: JobQueue = Depends(get_queue),
-):
-    payload = await request.body()
-    if request.app.state.dev_mode:
-        event = _parse_unsigned(payload)  # local testing with Postman: no Stripe signature needed
-    else:
-        try:
-            event = stripe.Webhook.construct_event(payload, stripe_signature or "", settings.stripe_webhook_secret)
-        except (ValueError, stripe.SignatureVerificationError):
-            raise HTTPException(status_code=400, detail="invalid payload or signature")
-
-    outcome = await handle_event(session, queue, event)
-    return {"status": outcome}
 
 
 def _parse_unsigned(payload: bytes) -> dict:
@@ -85,7 +61,8 @@ async def handle_event(session: AsyncSession, queue: JobQueue, event) -> str:
 
 
 async def _on_checkout_completed(session: AsyncSession, queue: JobQueue, customer_id: str) -> str:
-    tenant = (await session.execute(select(Tenant).where(Tenant.stripe_customer_id == customer_id))).scalar_one_or_none()
+    tenant = (
+        await session.execute(select(Tenant).where(Tenant.stripe_customer_id == customer_id))).scalar_one_or_none()
     if tenant is None:
         tenant = Tenant(stripe_customer_id=customer_id, status=TenantStatus.PENDING)
         session.add(tenant)
@@ -95,7 +72,8 @@ async def _on_checkout_completed(session: AsyncSession, queue: JobQueue, custome
 
 
 async def _on_subscription_deleted(session: AsyncSession, queue: JobQueue, customer_id: str) -> str:
-    tenant = (await session.execute(select(Tenant).where(Tenant.stripe_customer_id == customer_id))).scalar_one_or_none()
+    tenant = (
+        await session.execute(select(Tenant).where(Tenant.stripe_customer_id == customer_id))).scalar_one_or_none()
     if tenant is None:
         return "ignored"  # cancellation for a customer we never provisioned (e.g. out-of-order event)
     tenant.status = TenantStatus.DEPROVISIONING

@@ -10,9 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db import Tenant, TenantStatus, utcnow
-from app.locks import LockNotAcquired, redis_lock, tenant_lock
-from app.provisioner import Provisioner
-from app.queue import JobQueue
+from app.provisioning.locks import LockNotAcquired, redis_lock, tenant_lock
+from app.provisioning.provisioner import Provisioner
+from app.provisioning.queue import JobQueue
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,6 @@ PORT_RANGE = range(20000, 21000)
 
 class TenantNotFound(Exception):
     """The job ran before the tenant row was visible. The job is retried."""
-
 
 class NoFreePort(Exception):
     pass
@@ -45,13 +44,7 @@ async def _set_status(deps: Deps, tenant_id: str, status: TenantStatus, **fields
 
 
 async def allocate_port(deps: Deps, tenant_id: str) -> int:
-    """Reserve a host port for the tenant.
 
-    The port is written to the database *before* the global lock is released.
-    If it were recorded later (after the container starts), two concurrent jobs could
-    read the same "used ports" list and pick the same free port. The UNIQUE column
-    is a second line of defence.
-    """
     async with redis_lock(deps.redis, "global:port-allocation", ttl_seconds=30, wait_seconds=30):
         async with deps.session_factory() as session:
             tenant = await session.get(Tenant, tenant_id)

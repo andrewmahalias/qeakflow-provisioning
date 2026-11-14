@@ -10,7 +10,6 @@ class LockNotAcquired(Exception):
     pass
 
 
-# Release only if we still own the lock (compare token, then delete) - atomic in Lua.
 _RELEASE_SCRIPT = """
 if redis.call('get', KEYS[1]) == ARGV[1] then
     return redis.call('del', KEYS[1])

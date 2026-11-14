@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import get_settings
 from app.db import Base, make_session_factory
-from app.provisioner import FakeProvisioner
+from app.provisioning.provisioner import FakeProvisioner
 from app.provisioning import Deps
 from app.main import create_app
 

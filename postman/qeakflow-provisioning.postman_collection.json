@@ -1,0 +1,237 @@
+{
+  "info": {
+    "name": "Stripe provisioning pipeline (local demo)",
+    "description": "Run the requests top to bottom. Needs DEV_MODE=true. After each step call 'List tenants' to see the result.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "customer",
+      "value": "cus_demo"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "description": "",
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      }
+    },
+    {
+      "name": "1. checkout.session.completed (provisions a tenant)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"evt_{{$guid}}\",\n  \"type\": \"checkout.session.completed\",\n  \"data\": {\n    \"object\": {\n      \"customer\": \"{{customer}}\"\n    }\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/webhooks/stripe",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "webhooks",
+            "stripe"
+          ]
+        },
+        "description": "Creates the tenant and queues provisioning. Expected: provisioning_queued."
+      }
+    },
+    {
+      "name": "2. List tenants (status, port, container)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "description": "Expected after a few seconds: status active, a port from 20000, a container name.",
+        "url": {
+          "raw": "{{base_url}}/dev/tenants",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "dev",
+            "tenants"
+          ]
+        }
+      }
+    },
+    {
+      "name": "3. Replay protection (send TWICE)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"evt_replay_1\",\n  \"type\": \"checkout.session.completed\",\n  \"data\": {\n    \"object\": {\n      \"customer\": \"{{customer}}\"\n    }\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/webhooks/stripe",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "webhooks",
+            "stripe"
+          ]
+        },
+        "description": "Same event id every time. First call: provisioning_queued (or duplicate if step 1 used the same customer). Second call: duplicate."
+      }
+    },
+    {
+      "name": "4. invoice.payment_failed",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"evt_{{$guid}}\",\n  \"type\": \"invoice.payment_failed\",\n  \"data\": {\n    \"object\": {\n      \"customer\": \"{{customer}}\"\n    }\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/webhooks/stripe",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "webhooks",
+            "stripe"
+          ]
+        },
+        "description": "Records the first failed payment. Sending it again does not move the date."
+      }
+    },
+    {
+      "name": "5. Run billing job now: freeze (freeze_days=0)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "description": "Freezes tenants with a failed payment older than 0 days. Expected: status frozen, container stopped.",
+        "url": {
+          "raw": "{{base_url}}/dev/lifecycle?freeze_days=0",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "dev",
+            "lifecycle"
+          ],
+          "query": [
+            {
+              "key": "freeze_days",
+              "value": "0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "6. invoice.paid (unfreezes)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"evt_{{$guid}}\",\n  \"type\": \"invoice.paid\",\n  \"data\": {\n    \"object\": {\n      \"customer\": \"{{customer}}\"\n    }\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/webhooks/stripe",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "webhooks",
+            "stripe"
+          ]
+        },
+        "description": "Clears the past-due flag. A frozen tenant is restarted on the same container and port."
+      }
+    },
+    {
+      "name": "7. Optional: purge frozen tenants (purge_days=0)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "description": "Run steps 4 and 5 first so the tenant is frozen, then this queues its purge.",
+        "url": {
+          "raw": "{{base_url}}/dev/lifecycle?purge_days=0",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "dev",
+            "lifecycle"
+          ],
+          "query": [
+            {
+              "key": "purge_days",
+              "value": "0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "8. customer.subscription.deleted (removes the tenant)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"evt_{{$guid}}\",\n  \"type\": \"customer.subscription.deleted\",\n  \"data\": {\n    \"object\": {\n      \"customer\": \"{{customer}}\"\n    }\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/webhooks/stripe",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "webhooks",
+            "stripe"
+          ]
+        },
+        "description": "Expected: status deleted, container removed, port released."
+      }
+    }
+  ]
+}

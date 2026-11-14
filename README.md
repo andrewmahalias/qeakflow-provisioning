@@ -117,19 +117,35 @@ python scripts/send_test_event.py checkout.session.completed cus_demo
 ## Project layout
 
 ```
-app/
-  main.py          FastAPI app factory
-  webhook.py       signature check, idempotency, event dispatch
-  queue.py         arq wrapper with fixed job ids
-  worker.py        arq functions, lock + retry handling, nightly billing job
-  dev.py           /dev helper endpoints (only with DEV_MODE=true)
-  provisioning.py  provision / deprovision / lifecycle use-cases, port allocation, compensation
-  provisioner.py   Docker implementation and an in-memory fake
-  locks.py         distributed lock with owner token and wait time
-  db.py            SQLAlchemy models
-tests/             webhook, provisioning and lock tests
-scripts/           signed test-event sender
-postman/           Postman collection for the local walkthrough
+├── app/
+│   ├── provisioning/
+│   │   ├── __init__.py
+│   │   ├── locks.py
+│   │   ├── orchestrator.py
+│   │   ├── provisioner.py
+│   │   ├── queue.py
+│   │   └── worker.py
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   ├── dev.py
+│   │   └── webhook.py
+│   ├── __init__.py
+│   ├── config.py
+│   ├── db.py
+│   ├── main.py
+│   ├── schemas.py
+│   └── webhook.py
+├── postman/                   Postman collection for the local walkthrough
+├── scripts/
+├── tests/
+├── .env.example
+├── .gitignore
+├── docker-compose.yml
+├── Dockerfile
+├── pytest.ini
+├── README.md
+├── requirements.txt
+└── requirements-dev.txt         
 ```
 
 ## Known limitations

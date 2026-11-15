@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 async def get_session(request: Request):
-    async with request.app.state.session_factory() as session:
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
         yield session
 
 
@@ -58,6 +59,35 @@ async def handle_event(session: AsyncSession, queue: JobQueue, event) -> str:
     # 3. Commit last. If enqueueing raised, nothing is stored and Stripe retries the event.
     await session.commit()
     return outcome
+
+def validate_event(event: dict) -> None:
+    if not isinstance(event, dict):
+        raise ValueError("Payload must be a JSON object")
+
+    if not event.get("id"):
+        raise ValueError("Missing event id")
+
+    event_type = event.get("type")
+    if not event_type:
+        raise ValueError("Missing event type")
+
+    data = event.get("data")
+    if not isinstance(data, dict):
+        raise ValueError("Missing or invalid event data")
+
+    obj = data.get("object")
+    if not isinstance(obj, dict):
+        raise ValueError("Missing or invalid event object")
+
+    required_customer_events = {
+        "checkout.session.completed",
+        "customer.subscription.deleted",
+        "invoice.payment_failed",
+        "invoice.paid",
+    }
+
+    if event_type in required_customer_events and not obj.get("customer"):
+        raise ValueError("Missing customer in event object")
 
 
 async def _on_checkout_completed(session: AsyncSession, queue: JobQueue, customer_id: str) -> str:

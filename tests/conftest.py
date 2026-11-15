@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.config import get_settings
 from app.db import Base, make_session_factory
 from app.provisioning.provisioner import FakeProvisioner
-from app.provisioning import Deps
+from app.provisioning.orchestrator import Deps
 from app.main import create_app
 
 SECRET = get_settings().stripe_webhook_secret
@@ -68,12 +68,39 @@ async def client(session_factory, queue):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 
+@pytest_asyncio.fixture
+async def client_dev_false(session_factory, queue):
+    app = create_app(
+        session_factory=session_factory,
+        queue=queue,
+        dev_mode=False,
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as c:
+        yield c
+
+@pytest_asyncio.fixture
+async def client_dev_true(session_factory, queue):
+    app = create_app(
+        session_factory=session_factory,
+        queue=queue,
+        dev_mode=True,
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as c:
+        yield c
+
 
 @pytest_asyncio.fixture
 async def redis():
-    r = fakeredis.FakeAsyncRedis()
+    server = fakeredis.FakeServer()
+    r = fakeredis.aioredis.FakeRedis(server=server, decode_responses=True)
     yield r
-    await r.aclose()
+    await r.close()
 
 
 async def post_event(client, payload: bytes, signature: str | None = None):

@@ -7,7 +7,7 @@ from arq import Retry
 from app.db import Tenant, TenantStatus, utcnow
 from app.provisioning.locks import LockNotAcquired, redis_lock, tenant_lock
 from app.provisioning.provisioner import FakeProvisioner
-from app.provisioning import PORT_RANGE, Deps, TenantNotFound, deprovision, provision, run_lifecycle
+from app.provisioning.orchestrator import PORT_RANGE, Deps, TenantNotFound, deprovision, provision, run_lifecycle
 from app.provisioning.worker import provision_tenant
 from tests.conftest import FakeQueue
 
@@ -180,7 +180,7 @@ async def test_lock_waits_for_a_busy_lock_to_be_released(redis):
 async def test_lock_release_does_not_delete_foreign_lock(redis):
     async with tenant_lock(redis, "t1"):
         await redis.set("lock:tenant:t1", "someone-else")  # simulate TTL expiry + new owner
-    assert await redis.get("lock:tenant:t1") == b"someone-else"
+    assert await redis.get("lock:tenant:t1") == "someone-else"
 
 
 async def test_worker_retries_when_lock_is_held(redis, session_factory):

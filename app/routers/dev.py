@@ -9,7 +9,7 @@ from app.schemas import TenantDetailResponse, HealthResponse, LifecycleResponse
 from app.provisioning.queue import JobQueue
 from app.webhook import get_queue, get_session
 
-router = APIRouter(prefix="/dev", tags=["dev"])
+router = APIRouter(tags=["dev"])
 
 
 def _view(tenant: Tenant) -> dict:

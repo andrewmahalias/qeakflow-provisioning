@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 
 from app.db import ProcessedEvent, Tenant, TenantStatus
-from tests.conftest import make_event, post_event
+from tests.conftest import make_event, post_event, client_dev_false
 
 
 async def count(session_factory, model):
@@ -9,9 +9,9 @@ async def count(session_factory, model):
         return (await s.execute(select(func.count()).select_from(model))).scalar_one()
 
 
-async def test_invalid_signature_is_rejected(client, queue, session_factory):
+async def test_invalid_signature_is_rejected(client_dev_false, queue, session_factory):
     payload = make_event("evt_1", "checkout.session.completed")
-    resp = await post_event(client, payload, signature="t=1,v1=deadbeef")
+    resp = await post_event(client_dev_false, payload, signature="t=1,v1=deadbeef")
     assert resp.status_code == 400
     assert queue.jobs == []
     assert await count(session_factory, ProcessedEvent) == 0
